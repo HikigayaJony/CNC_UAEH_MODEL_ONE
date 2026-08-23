@@ -1,7 +1,7 @@
 #include "Sensores.h"
 #include "Pines.h"
 #include <Arduino.h>
-
+// buenas jony, lo logramos? 
 void sensores_init()
 {
     pinMode(X_LIMIT_PIN, INPUT_PULLUP);

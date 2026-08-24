@@ -3,8 +3,8 @@
 
 void motores_init();
 
-void moverX(float distancia);
-void moverY(float distancia);
-void moverZ(float distancia);
+void moverX(long pasos, bool direccion);
+void moverY(long pasos, bool direccion);
+void moverZ(long pasos, bool direccion);
 
 #endif

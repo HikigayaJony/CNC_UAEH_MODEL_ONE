@@ -39,4 +39,8 @@
 // PARO DE EMERGENCIA
 
 #define EMERGENCY_STOP_PIN 25
+<<<<<<< HEAD
+=======
+
+>>>>>>> e5d242cf3778122e3ea4f1b5fcee7a3c4aeb1490
 #endif

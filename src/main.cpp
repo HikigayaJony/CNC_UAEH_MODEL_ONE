@@ -1,5 +1,4 @@
 #include <Arduino.h>
-
 #include "Motores.h"
 #include "Sensores.h"
 #include "Comun.h"
@@ -11,12 +10,6 @@ void setup()
     sensores_init();
     comunicacion_init();
     seguridad_init();
-#include <Arduino.h>
-
-#include "Motores.h"
-#include "Sensores.h"
-#include "Seg.h"
-#include "Comun.h"
 }
 
 

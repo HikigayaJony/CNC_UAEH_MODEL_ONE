@@ -1,47 +1,24 @@
-#include <Arduino.h>
-
 #include "Sensores.h"
 #include "Pines.h"
-#include "Configuracion.h"
-
-
-
-// INICIALIZACIÓN
-
-
+#include <Arduino.h>
+// ehehehehehehehhe xd xd vamos los pibes
 void sensores_init()
 {
     pinMode(X_LIMIT_PIN, INPUT_PULLUP);
     pinMode(Y_LIMIT_PIN, INPUT_PULLUP);
     pinMode(Z_LIMIT_PIN, INPUT_PULLUP);
 }
-
-
-
-// LIMITE X
-
-
 bool limiteXActivo()
 {
-    return digitalRead(X_LIMIT_PIN) == LIMIT_ACTIVE;
+    return digitalRead(X_LIMIT_PIN) == LOW;
 }
-
-
-
-// LIMITE Y
-
 
 bool limiteYActivo()
 {
-    return digitalRead(Y_LIMIT_PIN) == LIMIT_ACTIVE;
+    return digitalRead(Y_LIMIT_PIN) == LOW;
 }
-
-
-
-// LIMITE Z
-
 
 bool limiteZActivo()
 {
-    return digitalRead(Z_LIMIT_PIN) == LIMIT_ACTIVE;
+    return digitalRead(Z_LIMIT_PIN) == LOW;
 }

@@ -2,16 +2,9 @@
 
 #include "Motores.h"
 #include "Sensores.h"
-#include "Comun.h"
 #include "Seg.h"
+#include "Comun.h"
 
-void setup()
-{
-    motores_init();
-    sensores_init();
-    comunicacion_init();
-    seguridad_init();
-}
 
 
 // SETUP
@@ -39,7 +32,6 @@ void setup()
     Serial.println("CNC lista.");
     Serial.println();
 }
-
 
 
 // LOOP

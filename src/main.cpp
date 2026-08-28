@@ -4,6 +4,8 @@
 #include "Sensores.h"
 #include "Comun.h"
 #include "Seg.h"
+
+
 //Hola
 void setup()
 {

@@ -34,6 +34,7 @@ void setup()
 }
 
 
+
 // LOOP
 
 
@@ -42,3 +43,6 @@ void loop()
     // Procesar comandos recibidos desde el PC
     procesarComunicacion();
 }
+
+
+//Prueba de conección con el PC

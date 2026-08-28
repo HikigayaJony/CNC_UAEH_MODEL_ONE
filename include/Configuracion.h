@@ -1,41 +1,66 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef CONFIGURACION_H
+#define CONFIGURACION_H
 
 
-// CONFIGURACIÓN GENERAL
+
+// COMUNICACIÓN
 
 
-#define SERIAL_BAUDRATE 115200
+#define BAUDRATE 115200
 
 
-// CONFIGURACIÓN DE MOTORES
 
+// MOTOR
+
+
+// NEMA 17 típico de 1.8 grados.
+// 360 / 1.8 = 200 pasos por revolución.
 #define MOTOR_STEPS_PER_REV 200
 
-// Microstepping del A4988.
-// Para esta primera prueba:
-// 1 = paso completo
-// 2 = medio paso
-// 4 = 1/4
-// 8 = 1/8
+
+// Microstepping configurado físicamente en el A4988.
+//
+// 1  = paso completo
+// 2  = 1/2
+// 4  = 1/4
+// 8  = 1/8
 // 16 = 1/16
+//
 #define MOTOR_MICROSTEPS 1
 
 
-// Tiempo entre pulsos STEP.
-// Por ahora trabajaremos con velocidad fija.
+// Tiempo entre cambios de STEP.
+// Menor valor = mayor velocidad.
+//
+// Esta primera versión usa velocidad fija.
 #define MOTOR_STEP_DELAY_US 1000
 
-#define X_STEPS_PER_MM 80.0
-#define Y_STEPS_PER_MM 80.0
-#define Z_STEPS_PER_MM 400.0
 
 
-// LÍMITES DE VELOCIDAD
+// MOVIMIENTO
 
 
-#define MAX_X_SPEED 1000.0
-#define MAX_Y_SPEED 1000.0
-#define MAX_Z_SPEED 500.0
+// Dirección considerada positiva.
+// Puede invertirse posteriormente.
+#define X_DIR_POSITIVE HIGH
+#define Y_DIR_POSITIVE HIGH
+#define Z_DIR_POSITIVE HIGH
+
+
+
+// SEGURIDAD
+
+
+// Los finales de carrera utilizan INPUT_PULLUP.
+// Por tanto:
+// LOW = activo
+// HIGH = inactivo
+#define LIMIT_ACTIVE LOW
+
+
+// Paro de emergencia.
+// LOW = emergencia activa.
+#define EMERGENCY_ACTIVE LOW
+
 
 #endif

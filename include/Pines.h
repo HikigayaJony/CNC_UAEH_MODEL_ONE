@@ -1,24 +1,33 @@
-#ifndef PINS_H
-#define PINS_H
+#ifndef PINES_H
+#define PINES_H
 
 
-// MOTORES
+
+// MOTOR X
 
 
-// Motor X
 #define X_STEP_PIN 2
-#define X_DIR_PIN 5
+#define X_DIR_PIN  5
 
-// Motor Y
+
+
+// MOTOR Y
+
+
 #define Y_STEP_PIN 3
-#define Y_DIR_PIN 6
+#define Y_DIR_PIN  6
 
-// Motor Z
+
+
+// MOTOR Z
+
+
 #define Z_STEP_PIN 4
-#define Z_DIR_PIN 7
+#define Z_DIR_PIN  7
 
 
-// SENSORES
+
+// FINALES DE CARRERA
 
 
 #define X_LIMIT_PIN 22
@@ -26,9 +35,10 @@
 #define Z_LIMIT_PIN 24
 
 
-// SEGURIDAD
 
+// PARO DE EMERGENCIA
 
-#define PARO_EMERGENCIA 25
+#define EMERGENCY_STOP_PIN 25
+
 
 #endif

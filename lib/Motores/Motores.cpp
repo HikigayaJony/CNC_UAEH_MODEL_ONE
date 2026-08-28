@@ -5,46 +5,67 @@
 #include "Configuracion.h"
 
 
-// =====================================================
-// Inicialización de motores
-// =====================================================
+
+// FUNCIONES INTERNAS
+
+
+void generarPaso(int stepPin)
+{
+    digitalWrite(stepPin, HIGH);
+
+    delayMicroseconds(MOTOR_STEP_DELAY_US);
+
+    digitalWrite(stepPin, LOW);
+
+    delayMicroseconds(MOTOR_STEP_DELAY_US);
+}
+
+
+
+// INICIALIZACIÓN
+
 
 void motores_init()
 {
-    // -------------------------
-    // Motor X
-    // -------------------------
+    
+    // X
+    
 
     pinMode(X_STEP_PIN, OUTPUT);
     pinMode(X_DIR_PIN, OUTPUT);
 
 
-    // -------------------------
-    // Motor Y
-    // -------------------------
+   
+    // Y
+    
 
     pinMode(Y_STEP_PIN, OUTPUT);
     pinMode(Y_DIR_PIN, OUTPUT);
 
 
-    // -------------------------
-    // Motor Z
-    // -------------------------
+    
+    // Z
+    
 
     pinMode(Z_STEP_PIN, OUTPUT);
     pinMode(Z_DIR_PIN, OUTPUT);
 
 
-    // Estado inicial de STEP
+    // Estado inicial
+
     digitalWrite(X_STEP_PIN, LOW);
     digitalWrite(Y_STEP_PIN, LOW);
     digitalWrite(Z_STEP_PIN, LOW);
+
+    digitalWrite(X_DIR_PIN, LOW);
+    digitalWrite(Y_DIR_PIN, LOW);
+    digitalWrite(Z_DIR_PIN, LOW);
 }
 
 
-// =====================================================
-// Motor X
-// =====================================================
+
+// MOTOR X
+
 
 void moverX(long pasos, bool direccion)
 {
@@ -52,20 +73,13 @@ void moverX(long pasos, bool direccion)
 
     for (long i = 0; i < pasos; i++)
     {
-        digitalWrite(X_STEP_PIN, HIGH);
-
-        delayMicroseconds(MOTOR_STEP_DELAY_US);
-
-        digitalWrite(X_STEP_PIN, LOW);
-
-        delayMicroseconds(MOTOR_STEP_DELAY_US);
+        generarPaso(X_STEP_PIN);
     }
 }
 
 
-// =====================================================
-// Motor Y
-// =====================================================
+
+// MOTOR Y
 
 void moverY(long pasos, bool direccion)
 {
@@ -73,20 +87,14 @@ void moverY(long pasos, bool direccion)
 
     for (long i = 0; i < pasos; i++)
     {
-        digitalWrite(Y_STEP_PIN, HIGH);
-
-        delayMicroseconds(MOTOR_STEP_DELAY_US);
-
-        digitalWrite(Y_STEP_PIN, LOW);
-
-        delayMicroseconds(MOTOR_STEP_DELAY_US);
+        generarPaso(Y_STEP_PIN);
     }
 }
 
 
-// =====================================================
-// Motor Z
-// =====================================================
+
+// MOTOR Z
+
 
 void moverZ(long pasos, bool direccion)
 {
@@ -94,12 +102,17 @@ void moverZ(long pasos, bool direccion)
 
     for (long i = 0; i < pasos; i++)
     {
-        digitalWrite(Z_STEP_PIN, HIGH);
-
-        delayMicroseconds(MOTOR_STEP_DELAY_US);
-
-        digitalWrite(Z_STEP_PIN, LOW);
-
-        delayMicroseconds(MOTOR_STEP_DELAY_US);
+        generarPaso(Z_STEP_PIN);
     }
+}
+
+
+
+// DETENER MOTORES
+
+void detenerMotores()
+{
+    digitalWrite(X_STEP_PIN, LOW);
+    digitalWrite(Y_STEP_PIN, LOW);
+    digitalWrite(Z_STEP_PIN, LOW);
 }

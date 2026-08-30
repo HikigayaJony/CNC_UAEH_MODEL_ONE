@@ -62,9 +62,55 @@ void motores_init()
     digitalWrite(Z_DIR_PIN, LOW);
 }
 
+void moverSimultaneo(long pasosX, bool dirX, long pasosY, bool dirY, long pasosZ, bool dirZ) 
+{
+    // 1. Establecer las direcciones en los pines correspondientes
+    digitalWrite(X_DIR_PIN, dirX);
+    digitalWrite(Y_DIR_PIN, dirY);
+    digitalWrite(Z_DIR_PIN, dirZ);
 
+    // 2. Determinar el número máximo de pasos a dar entre los tres ejes
+    long maxPasos = max(pasosX, max(pasosY, pasosZ));
+    if (maxPasos == 0) return;
 
-// MOTOR X
+    // Variables de error para el algoritmo de interpolación
+    long errX = maxPasos / 2;
+    long errY = maxPasos / 2;
+    long errZ = maxPasos / 2;
+
+    // 3. Bucle único para mover todos los motores en paralelo
+    for (long i = 0; i < maxPasos; i++) 
+    {
+        // Evaluación del Eje X
+        if (pasosX > 0) {
+            errX -= pasosX;
+            if (errX < 0) {
+                errX += maxPasos;
+                generarPaso(X_STEP_PIN);
+            }
+        }
+
+        // Evaluación del Eje Y
+        if (pasosY > 0) {
+            errY -= pasosY;
+            if (errY < 0) {
+                errY += maxPasos;
+                generarPaso(Y_STEP_PIN);
+            }
+        }
+
+        // Evaluación del Eje Z
+        if (pasosZ > 0) {
+            errZ -= pasosZ;
+            if (errZ < 0) {
+                errZ += maxPasos;
+                generarPaso(Z_STEP_PIN);
+            }
+        }
+    }
+}
+
+/* MOTOR X 
 
 
 void moverX(long pasos, bool direccion)
@@ -107,7 +153,7 @@ void moverZ(long pasos, bool direccion)
 }
 
 
-
+*/
 // DETENER MOTORES
 
 void detenerMotores()

@@ -79,9 +79,21 @@ void mostrarEstado()
     Serial.println();
 }
 
+// Extrae el número asociado a un eje (ej. extrae 100 de "X100" o -50 de "Y-50")
+long extraerPasos(String texto, char eje) {
+    int idx = texto.indexOf(eje);
+    if (idx == -1) return 0;
+
+    int idxFin = idx + 1;
+    while (idxFin < texto.length() && (isDigit(texto[idxFin]) || texto[idxFin] == '-')) {
+        idxFin++;
+    }
+    return texto.substring(idx + 1, idxFin).toInt();
+}
 
 
 // PROCESAMIENTO DE COMUNICACIÓN
+
 
 
 void procesarComunicacion()
@@ -95,7 +107,7 @@ void procesarComunicacion()
     String comando = Serial.readStringUntil('\n');
 
     comando.trim();
-
+    comando.toUpperCase();
 
     if (comando.length() == 0)
     {
@@ -140,8 +152,42 @@ void procesarComunicacion()
     }
 
 
-    
-    // COMANDO DE MOVIMIENTO
+    // COMANDO DE MOVIMIENTO COMBINADO (X, Y, Z)
+    long pasosX = extraerPasos(comando, 'X');
+    long pasosY = extraerPasos(comando, 'Y');
+    long pasosZ = extraerPasos(comando, 'Z');
+
+    // Validar si el comando contiene al menos un eje con movimiento
+    if (pasosX == 0 && pasosY == 0 && pasosZ == 0) {
+        Serial.println("ERROR: comando no valido.");
+        return;
+    }
+
+    // Determinar dirección de cada eje
+    bool dirX = pasosX > 0;
+    bool dirY = pasosY > 0;
+    bool dirZ = pasosZ > 0;
+
+    // Validación de sensores de límite por eje
+    if (pasosX != 0 && dirX && limiteXActivo()) {
+        Serial.println("ERROR: limite X activo.");
+        return;
+    }
+    if (pasosY != 0 && dirY && limiteYActivo()) {
+        Serial.println("ERROR: limite Y activo.");
+        return;
+    }
+    if (pasosZ != 0 && dirZ && limiteZActivo()) {
+        Serial.println("ERROR: limite Z activo.");
+        return;
+    }
+
+    // Ejecución simultánea de los tres motores
+    moverSimultaneo(abs(pasosX), dirX, abs(pasosY), dirY, abs(pasosZ), dirZ);
+
+    Serial.println("OK: movimiento ejecutado.");
+}
+/* COMANDO DE MOVIMIENTO
     
 
     char eje = comando.charAt(0);
@@ -231,3 +277,4 @@ void procesarComunicacion()
     
     Serial.println("ERROR: comando desconocido.");
 }
+    */

@@ -2,27 +2,39 @@
 
 #include "Motores.h"
 #include "Sensores.h"
-#include "Comun.h"
 #include "Seg.h"
+#include "Comun.h"
+
+// SETUP
 
 
 //Hola
 void setup()
 {
+    // Inicializar motores
     motores_init();
+
+    // Inicializar sensores
     sensores_init();
-    comunicacion_init();
+
+    // Inicializar seguridad
     seguridad_init();
 
-    Serial.println("CNC Arduino Mega iniciada");
+    // Inicializar comunicación USB/Serial
+    comunicacion_init();
+
+
+    Serial.println("Inicializacion completa.");
+    Serial.println("CNC lista.");
+    Serial.println();
 }
+
+// LOOP
 
 void loop()
 {
+    // Procesar comandos recibidos desde el PC
     procesarComunicacion();
-
-    if (emergenciaActiva())
-    {
-        Serial.println("EMERGENCIA");
-    }
 }
+
+//Prueba de conección con el PC

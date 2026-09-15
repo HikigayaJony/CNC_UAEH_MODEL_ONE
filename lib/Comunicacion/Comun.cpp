@@ -7,19 +7,32 @@
 #include "Sensores.h"
 #include "Seg.h"
 
-// Inicializamos el objeto LCD I2C (Dirección estándar 0x27, 16 columnas, 2 filas)
+// Objeto global de la pantalla LCD (Dirección I2C 0x27, 16 columnas x 2 filas)
 static LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 static float posAbsX = 0.0f;
 static float posAbsY = 0.0f;
 static float posAbsZ = 0.0f;
 
+// true = G90 (absoluto), false = G91 (relativo). G90 es el modo por defecto.
 static bool modoAbsoluto = true;
 
-// Función auxiliar para actualizar los renglones del LCD 16x2
+// Carácter personalizado para barra llena (Bloque sólido de 5x8 píxeles)
+static byte bloqueLleno[8] = {
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111
+};
+
+// Función para actualizar la pantalla LCD 16x2 desde las tramas enviadas por C#
 void actualizarPantallaLCD(String trama)
 {
-    // Espera formato "LCD|ESTADO|PORCENTAJE" enviado por C#
+    // Trama esperada desde C#: "LCD|ESTADO|PORCENTAJE" (ejemplo: "LCD|DIBUJAN|G-CODE|45")
     int primerPipe = trama.indexOf('|');
     int segundoPipe = trama.indexOf('|', primerPipe + 1);
 
@@ -28,45 +41,60 @@ void actualizarPantallaLCD(String trama)
         String estado = trama.substring(primerPipe + 1, segundoPipe);
         int porcentaje = trama.substring(segundoPipe + 1).toInt();
 
-        // 1. Renglón 1: Estado (limpiado/rellenado a 16 espacios)
+        if (porcentaje < 0) porcentaje = 0;
+        if (porcentaje > 100) porcentaje = 100;
+
+        // --- RENGLÓN 1: Estado del Sistema / Conexión (Rellenado a 16 espacios) ---
         lcd.setCursor(0, 0);
         String linea1 = estado;
         while (linea1.length() < 16) linea1 += " ";
         lcd.print(linea1.substring(0, 16));
 
-        // 2. Renglón 2: Porcentaje y Barra visual [████░░░░░]
+        // --- RENGLÓN 2: Porcentaje y ProgressBar [████░░░░░] ---
         lcd.setCursor(0, 1);
+        
+        // Mapeo a 9 bloques asignados para la barra gráfica
         int bloques = map(porcentaje, 0, 100, 0, 9);
 
+        // Formato de porcentaje a 4 caracteres exactos ("  0%", " 45%", "100%")
         String txtPct = String(porcentaje) + "%";
         if (porcentaje < 10) txtPct = "  " + txtPct;
         else if (porcentaje < 100) txtPct = " " + txtPct;
 
-        String barra = "[";
+        lcd.print(txtPct); // Usa 4 columnas
+        lcd.print(" [");    // Usa 2 columnas
+
+        // Dibujar los 9 caracteres de la barra
         for (int i = 0; i < 9; i++)
         {
-            if (i < bloques) barra += "#";
-            else barra += " ";
+            if (i < bloques)
+            {
+                lcd.write(byte(0)); // Bloque sólido personalizado
+            }
+            else
+            {
+                lcd.print(" ");
+            }
         }
-        barra += "]";
-
-        String linea2 = txtPct + " " + barra;
-        lcd.print(linea2.substring(0, 16));
+        lcd.print("]"); // Usa 1 columna. Total: 4 + 2 + 9 + 1 = 16 caracteres
     }
 }
 
-// INICIALIZACIÓN
+// INICIALIZACIÓN DE LA COMUNICACIÓN Y COMPONENTES
 void comunicacion_init()
 {
     Serial.begin(115200);
 
-    // Inicializar pantalla LCD
+    // Inicializar pantalla LCD I2C y registrar el carácter personalizado
     lcd.init();
     lcd.backlight();
+    lcd.createChar(0, bloqueLleno);
+
+    // Mensaje de Bienvenida al encender el sistema
     lcd.setCursor(0, 0);
     lcd.print("  CNC UAEH 2026 ");
     lcd.setCursor(0, 1);
-    lcd.print(" Sistema Listo  ");
+    lcd.print("DESCONECTADO... ");
 
     Serial.println();
     Serial.println("=================================");
@@ -74,10 +102,20 @@ void comunicacion_init()
     Serial.println(" Arduino Mega + A4988 + LCD");
     Serial.println("=================================");
     Serial.println("Sistema iniciado.");
+    Serial.println("Comandos:");
+    Serial.println("G90         -> modo absoluto (posicion destino)");
+    Serial.println("G91         -> modo relativo (desplazamiento)");
+    Serial.println("X100        -> mover/posicionar X 100");
+    Serial.println("X-100       -> mover/posicionar X -100");
+    Serial.println("Y100        -> mover/posicionar Y 100");
+    Serial.println("Z100        -> mover/posicionar Z 100");
+    Serial.println("G92 X0 Y0 Z0 -> fijar posicion actual como origen");
+    Serial.println("STOP        -> detener");
+    Serial.println("STATUS      -> estado del sistema");
     Serial.println();
 }
 
-// ESTADO
+// ESTADO GENERAL DE SENSORES Y EJES
 void mostrarEstado()
 {
     Serial.println();
@@ -118,6 +156,7 @@ void mostrarEstado()
     Serial.println();
 }
 
+// Extrae el valor numérico (con decimales) asociado a un eje
 float extraerValorEje(String texto, char eje, bool &presente)
 {
     int idx = texto.indexOf(eje);
@@ -134,7 +173,7 @@ float extraerValorEje(String texto, char eje, bool &presente)
     return texto.substring(idx + 1, idxFin).toFloat();
 }
 
-// PROCESAMIENTO DE COMUNICACIÓN
+// PROCESAMIENTO DE COMUNICACIÓN SERIE Y G-CODE
 void procesarComunicacion()
 {
     if (Serial.available() == 0) return;
@@ -142,7 +181,7 @@ void procesarComunicacion()
     String comando = Serial.readStringUntil('\n');
     comando.trim();
 
-    // NUEVO: Capturar comandos de la pantalla LCD antes de pasar a Mayúsculas o validar G-Code
+    // Captura prioritaria de comandos LCD enviados desde la aplicación en C#
     if (comando.startsWith("LCD|"))
     {
         actualizarPantallaLCD(comando);
@@ -181,7 +220,7 @@ void procesarComunicacion()
         }
     }
 
-    // 4. G92: fijar la posición actual como origen
+    // 4. G92: fijar la posición actual como origen (o el valor indicado)
     if (comando.startsWith("G92"))
     {
         bool tieneXg92, tieneYg92, tieneZg92;
@@ -197,7 +236,7 @@ void procesarComunicacion()
         return;
     }
 
-    // 5. Ignorar comandos M (Spindle / Fin de programa)
+    // 5. Ignorar comandos M (Spindle / Fin de programa) enviando un "ok"
     if (comando.startsWith("M"))
     {
         Serial.println("OK: comando M omitido.");
@@ -261,7 +300,7 @@ void procesarComunicacion()
     if (tieneY && pasosY != 0 && dirY && limiteYActivo()) { Serial.println("ERROR: limite Y activo."); return; }
     if (tieneZ && pasosZ != 0 && dirZ && limiteZActivo()) { Serial.println("ERROR: limite Z activo."); return; }
 
-    // 10. Ejecutar movimiento
+    // 10. Ejecutar movimiento simultáneo de motores
     moverSimultaneo(pasosX, dirX, pasosY, dirY, pasosZ, dirZ);
 
     // 11. Actualizar la posición absoluta DESPUÉS de mover

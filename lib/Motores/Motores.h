@@ -6,16 +6,32 @@
 // Inicializa los pines de los motores.
 void motores_init();
 
-// Movimiento simultáneo de ejes PARALELO.
-void moverSimultaneo(long pasosX, bool dirX, long pasosY, bool dirY, long pasosZ, bool dirZ);
-/* Movimiento de cada eje en pasos.
-void moverX(long pasos, bool direccion);
-void moverY(long pasos, bool direccion);
-void moverZ(long pasos, bool direccion);
-*/
 
-// Detiene todos los motores.
+// Movimiento absoluto
+bool moverA(float x, float y, float z, float feedrate);
+
+// Movimiento relativo
+bool moverRelativo(float dx, float dy, float dz, float feedrate);
+
+// Detener
 void detenerMotores();
+
+// Posición
+float obtenerX();
+float obtenerY();
+float obtenerZ();
+
+// Establecer posición
+void establecerPosicion(float x, float y, float z);
+
+
+// Estado
+bool motoresOcupados();
+
+
+// Actualización
+void motores_update();
+
 
 
 #endif

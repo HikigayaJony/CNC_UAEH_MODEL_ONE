@@ -9,5 +9,8 @@ bool emergenciaActiva();
 
 bool sistemaSeguro();
 
+void activarEmergencia();
+
+void limpiarEmergencia();
 
 #endif

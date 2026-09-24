@@ -3,162 +3,298 @@
 #include "Motores.h"
 #include "Pines.h"
 #include "Configuracion.h"
+#include "Sensores.h"
+#include "Seg.h"
 
 
+// Posicion actual
 
-// FUNCIONES INTERNAS
+float posicionX = INITIAL_X;
+float posicionY = INITIAL_Y;
+float posicionZ = INITIAL_Z;
 
+// Movimiento
 
-void generarPaso(int stepPin)
+bool movimientoActivo = false;
+
+// Destino
+
+long destinoX = 0;
+long destinoY = 0;
+long destinoZ = 0;
+
+// Pasos actuales 
+
+long pasosX = 0;
+long pasosY = 0;
+long pasosZ = 0;
+
+// Tiempo en microsegundos entre cada paso
+unsigned long pasoDelayUS = 1000;
+unsigned long ultimoPasoMicros = 0;
+
+// Conversion de mm a pasos
+
+long mmAStepsX(float mm)
 {
-    digitalWrite(stepPin, HIGH);
-
-    delayMicroseconds(MOTOR_STEP_DELAY_US);
-
-    digitalWrite(stepPin, LOW);
-
-    delayMicroseconds(MOTOR_STEP_DELAY_US);
+    return (long)(mm * X_STEPS_PER_MM);
 }
 
 
+long mmAStepsY(float mm)
+{
+    return (long)(mm * Y_STEPS_PER_MM);
+}
 
-// INICIALIZACIÓN
+
+long mmAStepsZ(float mm)
+{
+    return (long)(mm * Z_STEPS_PER_MM);
+}
+
+
+// Inicio
 
 
 void motores_init()
 {
-    
-    // X
-    
-
     pinMode(X_STEP_PIN, OUTPUT);
     pinMode(X_DIR_PIN, OUTPUT);
-
-
-   
-    // Y
-    
 
     pinMode(Y_STEP_PIN, OUTPUT);
     pinMode(Y_DIR_PIN, OUTPUT);
 
-
-    
-    // Z
-    
-
     pinMode(Z_STEP_PIN, OUTPUT);
     pinMode(Z_DIR_PIN, OUTPUT);
 
-
-    // Estado inicial
+    pinMode(STEPPER_ENABLE_PIN, OUTPUT);
 
     digitalWrite(X_STEP_PIN, LOW);
     digitalWrite(Y_STEP_PIN, LOW);
     digitalWrite(Z_STEP_PIN, LOW);
 
-    digitalWrite(X_DIR_PIN, LOW);
-    digitalWrite(Y_DIR_PIN, LOW);
-    digitalWrite(Z_DIR_PIN, LOW);
+    digitalWrite(STEPPER_ENABLE_PIN, DRIVER_DISABLE);
+
+    posicionX = INITIAL_X;
+    posicionY = INITIAL_Y;
+    posicionZ = INITIAL_Z;
 }
 
-void moverSimultaneo(long pasosX, bool dirX, long pasosY, bool dirY, long pasosZ, bool dirZ) 
+// Habilitación de drivers
+
+
+void habilitarDrivers()
 {
-    // 1. Establecer las direcciones en los pines correspondientes
-    digitalWrite(X_DIR_PIN, dirX);
-    digitalWrite(Y_DIR_PIN, dirY);
-    digitalWrite(Z_DIR_PIN, dirZ);
+    digitalWrite(STEPPER_ENABLE_PIN, DRIVER_ENABLE);
+}
 
-    // 2. Determinar el número máximo de pasos a dar entre los tres ejes
-    long maxPasos = max(pasosX, max(pasosY, pasosZ));
-    if (maxPasos == 0) return;
 
-    // Variables de error para el algoritmo de interpolación
-    long errX = maxPasos / 2;
-    long errY = maxPasos / 2;
-    long errZ = maxPasos / 2;
+void deshabilitarDrivers()
+{
+    digitalWrite(STEPPER_ENABLE_PIN, DRIVER_DISABLE);
+}
 
-    // 3. Bucle único para mover todos los motores en paralelo
-    for (long i = 0; i < maxPasos; i++) 
+
+// Movimiento absoluto
+
+bool moverA(float x, float y, float z, float feedrate)
+{
+    if (!sistemaSeguro() ||  movimientoActivo){
+        return false;
+    }
+    
+
+    if (feedrate <= 0){
+        feedrate = DEFAULT_FEEDRATE;
+    }
+
+
+    if (feedrate > MAX_FEEDRATE){
+        feedrate = MAX_FEEDRATE;
+    }
+
+
+    destinoX = mmAStepsX(x);
+    destinoY = mmAStepsY(y);
+    destinoZ = mmAStepsZ(z);
+
+
+    pasosX = mmAStepsX(posicionX);
+    pasosY = mmAStepsY(posicionY);
+    pasosZ = mmAStepsZ(posicionZ);
+
+    // Esto da la direccion
+
+    digitalWrite(X_DIR_PIN,destinoX >= pasosX ? HIGH : LOW);
+
+    digitalWrite(Y_DIR_PIN,destinoY >= pasosY ? HIGH : LOW);
+
+    digitalWrite(Z_DIR_PIN, destinoZ >= pasosZ ? HIGH : LOW);
+
+    // Nueva seccion, calcular el tiempo entre pasos
+
+    float pasosPorSegundo = (feedrate / 60.0) * X_STEPS_PER_MM; //Para no saturar el motor en base al cpu
+
+    if (pasosPorSegundo > 0) {
+        // Tiempo por paso en microsegundos (1,000,000 us / pasos_por_segundo)
+        pasoDelayUS = (unsigned long)(1000000.0 / pasosPorSegundo);
+    } else {
+        pasoDelayUS = 10000; // Valor seguro por defecto (10ms)
+    }
+
+    habilitarDrivers();
+
+    movimientoActivo = true;
+
+    return true;
+}
+
+
+
+// Movimiento relativo
+
+bool moverRelativo(float dx, float dy, float dz, float feedrate)
+{
+    return moverA(
+        posicionX + dx,
+        posicionY + dy,
+        posicionZ + dz,
+        feedrate
+    );
+}
+
+// Update
+
+void motores_update()
+{
+    if (!movimientoActivo)
     {
-        // Evaluación del Eje X
-        if (pasosX > 0) {
-            errX -= pasosX;
-            if (errX < 0) {
-                errX += maxPasos;
-                generarPaso(X_STEP_PIN);
-            }
+        return;
+    }
+
+
+    if (!sistemaSeguro())
+    {
+        detenerMotores();
+        return;
+    }
+
+
+    // Tiempo de seguridad
+
+    if (micros() - ultimoPasoMicros < pasoDelayUS) {
+        return;
         }
+    ultimoPasoMicros = micros();
 
-        // Evaluación del Eje Y
-        if (pasosY > 0) {
-            errY -= pasosY;
-            if (errY < 0) {
-                errY += maxPasos;
-                generarPaso(Y_STEP_PIN);
-            }
-        }
-
-        // Evaluación del Eje Z
-        if (pasosZ > 0) {
-            errZ -= pasosZ;
-            if (errZ < 0) {
-                errZ += maxPasos;
-                generarPaso(Z_STEP_PIN);
-            }
-        }
-    }
-}
-
-/* MOTOR X 
-
-
-void moverX(long pasos, bool direccion)
-{
-    digitalWrite(X_DIR_PIN, direccion);
-
-    for (long i = 0; i < pasos; i++)
+    // pasos para X
+    
+    if (pasosX != destinoX)
     {
-        generarPaso(X_STEP_PIN);
+        digitalWrite(X_STEP_PIN, HIGH);
+
+        delayMicroseconds(STEP_PULSE_US);
+
+        digitalWrite(X_STEP_PIN, LOW);
+
+        pasosX += destinoX > pasosX ? 1 : -1;
+
+        posicionX = pasosX / X_STEPS_PER_MM;
     }
-}
 
 
+    // eje Y
 
-// MOTOR Y
-
-void moverY(long pasos, bool direccion)
-{
-    digitalWrite(Y_DIR_PIN, direccion);
-
-    for (long i = 0; i < pasos; i++)
+    if (pasosY != destinoY)
     {
-        generarPaso(Y_STEP_PIN);
+        digitalWrite(Y_STEP_PIN, HIGH);
+
+        delayMicroseconds(STEP_PULSE_US);
+
+        digitalWrite(Y_STEP_PIN, LOW);
+
+        pasosY += destinoY > pasosY ? 1 : -1;
+
+        posicionY = pasosY / Y_STEPS_PER_MM;
     }
-}
 
 
+    // Z
 
-// MOTOR Z
-
-
-void moverZ(long pasos, bool direccion)
-{
-    digitalWrite(Z_DIR_PIN, direccion);
-
-    for (long i = 0; i < pasos; i++)
+    if (pasosZ != destinoZ)
     {
-        generarPaso(Z_STEP_PIN);
+        digitalWrite(Z_STEP_PIN, HIGH);
+
+        delayMicroseconds(STEP_PULSE_US);
+
+        digitalWrite(Z_STEP_PIN, LOW);
+
+        pasosZ += destinoZ > pasosZ ? 1 : -1;
+
+        posicionZ = pasosZ / Z_STEPS_PER_MM;
+    }
+
+
+    
+    // Fin del movimiento
+    
+    if (pasosX == destinoX &&
+        pasosY == destinoY &&
+        pasosZ == destinoZ)
+    {
+        movimientoActivo = false;
     }
 }
 
 
-*/
-// DETENER MOTORES
+// Stop
 
 void detenerMotores()
 {
+    movimientoActivo = false;
+
     digitalWrite(X_STEP_PIN, LOW);
     digitalWrite(Y_STEP_PIN, LOW);
     digitalWrite(Z_STEP_PIN, LOW);
+
+    deshabilitarDrivers();
+}
+
+
+
+// Posición
+
+float obtenerX()
+{
+    return posicionX;
+}
+
+
+float obtenerY()
+{
+    return posicionY;
+}
+
+
+float obtenerZ()
+{
+    return posicionZ;
+}
+
+
+void establecerPosicion(float x, float y, float z)
+{
+    posicionX = x;
+    posicionY = y;
+    posicionZ = z;
+}
+
+
+
+// Estado de los motores
+
+
+bool motoresOcupados()
+{
+    return movimientoActivo;
 }

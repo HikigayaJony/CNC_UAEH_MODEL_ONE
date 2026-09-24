@@ -1,24 +1,61 @@
 #include "Sensores.h"
 #include "Pines.h"
+#include "Configuracion.h"
 #include <Arduino.h>
-// ehehehehehehehhe xd xd vamos los pibes
+
+
+// Inicio 
+
 void sensores_init()
 {
-    pinMode(X_LIMIT_PIN, INPUT_PULLUP);
-    pinMode(Y_LIMIT_PIN, INPUT_PULLUP);
-    pinMode(Z_LIMIT_PIN, INPUT_PULLUP);
-}
-bool limiteXActivo()
-{
-    return digitalRead(X_LIMIT_PIN) == LOW;
+    pinMode(X_MIN_PIN, INPUT_PULLUP);
+    pinMode(Y_MIN_PIN, INPUT_PULLUP);
+    pinMode(Z_MIN_PIN, INPUT_PULLUP);
+
+    pinMode(X_MAX_PIN, INPUT_PULLUP);
+    pinMode(Y_MAX_PIN, INPUT_PULLUP);
+    pinMode(Z_MAX_PIN, INPUT_PULLUP);
+
 }
 
-bool limiteYActivo()
+// LIMITES MÍNIMOS
+
+bool xMinActivo()
 {
-    return digitalRead(Y_LIMIT_PIN) == LOW;
+    return digitalRead(X_MIN_PIN) == LIMIT_ACTIVE;
 }
 
-bool limiteZActivo()
+
+bool yMinActivo()
 {
-    return digitalRead(Z_LIMIT_PIN) == LOW;
+    return digitalRead(Y_MIN_PIN) == LIMIT_ACTIVE;
 }
+
+
+bool zMinActivo()
+{
+    return digitalRead(Z_MIN_PIN) == LIMIT_ACTIVE;
+}
+
+
+// Limite maximo
+
+
+bool xMaxActivo()
+{
+    return digitalRead(X_MAX_PIN) == LIMIT_ACTIVE;
+}
+
+
+bool yMaxActivo()
+{
+    return digitalRead(Y_MAX_PIN) == LIMIT_ACTIVE;
+}
+
+
+bool zMaxActivo()
+{
+    return digitalRead(Z_MAX_PIN) == LIMIT_ACTIVE;
+}
+
+

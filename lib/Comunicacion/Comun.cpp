@@ -6,16 +6,13 @@
 #include "Motores.h"
 #include "Sensores.h"
 #include "Seg.h"
+#include "Gcode.h"
+#include "Configuracion.h"
 
 // Objeto global de la pantalla LCD (Dirección I2C 0x27, 16 columnas x 2 filas)
 static LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-static float posAbsX = 0.0f;
-static float posAbsY = 0.0f;
-static float posAbsZ = 0.0f;
-
-// true = G90 (absoluto), false = G91 (relativo). G90 es el modo por defecto.
-static bool modoAbsoluto = true;
+static String bufferSerial = "";
 
 // Carácter personalizado para barra llena (Bloque sólido de 5x8 píxeles)
 static byte bloqueLleno[8] = {
@@ -80,10 +77,10 @@ void actualizarPantallaLCD(String trama)
     }
 }
 
-// INICIALIZACIÓN DE LA COMUNICACIÓN Y COMPONENTES
+// Inicio de la comunicación serie y pantalla LCD
 void comunicacion_init()
 {
-    Serial.begin(115200);
+    
 
     // Inicializar pantalla LCD I2C y registrar el carácter personalizado
     lcd.init();
@@ -96,24 +93,16 @@ void comunicacion_init()
     lcd.setCursor(0, 1);
     lcd.print("DESCONECTADO... ");
 
-    Serial.println();
-    Serial.println("=================================");
-    Serial.println(" CNC UAEH - FIRMWARE");
-    Serial.println(" Arduino Mega + A4988 + LCD");
-    Serial.println("=================================");
-    Serial.println("Sistema iniciado.");
-    Serial.println("Comandos:");
-    Serial.println("G90         -> modo absoluto (posicion destino)");
-    Serial.println("G91         -> modo relativo (desplazamiento)");
-    Serial.println("X100        -> mover/posicionar X 100");
-    Serial.println("X-100       -> mover/posicionar X -100");
-    Serial.println("Y100        -> mover/posicionar Y 100");
-    Serial.println("Z100        -> mover/posicionar Z 100");
-    Serial.println("G92 X0 Y0 Z0 -> fijar posicion actual como origen");
-    Serial.println("STOP        -> detener");
-    Serial.println("STATUS      -> estado del sistema");
-    Serial.println();
+
+    Serial.begin(SERIAL_BAUDRATE);
+
+    bufferSerial = "";
+
+    Serial.println("CNC UAEH READY");
+    Serial.println("Firmware: 1.0");
 }
+
+
 
 // ESTADO GENERAL DE SENSORES Y EJES
 void mostrarEstado()
@@ -131,191 +120,83 @@ void mostrarEstado()
     }
 
     Serial.print("LIMITE X: ");
-    if (limiteXActivo()) Serial.println("ACTIVO");
-    else Serial.println("OK");
+
+    if (xMinActivo() || xMaxActivo())
+    Serial.println("ACTIVO");
+    else
+    Serial.println("OK");
 
     Serial.print("LIMITE Y: ");
-    if (limiteYActivo()) Serial.println("ACTIVO");
-    else Serial.println("OK");
+
+    if (yMinActivo() || yMaxActivo())
+    Serial.println("ACTIVO");
+    else
+    Serial.println("OK");
 
     Serial.print("LIMITE Z: ");
-    if (limiteZActivo()) Serial.println("ACTIVO");
-    else Serial.println("OK");
-
-    Serial.print("MODO: ");
-    Serial.println(modoAbsoluto ? "G90 (ABSOLUTO)" : "G91 (RELATIVO)");
+    if (zMinActivo() || zMaxActivo())
+    Serial.println("ACTIVO");
+    else
+    Serial.println("OK");
 
     Serial.print("POSICION ACTUAL: X=");
-    Serial.print(posAbsX, 4);
+    Serial.print(obtenerX(), 4);
+
     Serial.print(" Y=");
-    Serial.print(posAbsY, 4);
+    Serial.print(obtenerY(), 4);
+
     Serial.print(" Z=");
-    Serial.println(posAbsZ, 4);
+    Serial.println(obtenerZ(), 4);
 
     Serial.println("------------------");
     Serial.println();
 }
 
-// Extrae el valor numérico (con decimales) asociado a un eje
-float extraerValorEje(String texto, char eje, bool &presente)
+
+
+
+void comunicacion_update()
 {
-    int idx = texto.indexOf(eje);
-    if (idx == -1) { presente = false; return 0.0f; }
-
-    int idxFin = idx + 1;
-    while (idxFin < (int)texto.length() &&
-           (isDigit(texto[idxFin]) || texto[idxFin] == '-' || texto[idxFin] == '.'))
+    while (Serial.available() > 0)
     {
-        idxFin++;
-    }
+        char caracter = Serial.read();
 
-    presente = true;
-    return texto.substring(idx + 1, idxFin).toFloat();
-}
 
-// PROCESAMIENTO DE COMUNICACIÓN SERIE Y G-CODE
-void procesarComunicacion()
-{
-    if (Serial.available() == 0) return;
+        // fin de la linea
 
-    String comando = Serial.readStringUntil('\n');
-    comando.trim();
-
-    // Captura prioritaria de comandos LCD enviados desde la aplicación en C#
-    if (comando.startsWith("LCD|"))
-    {
-        actualizarPantallaLCD(comando);
-        return;
-    }
-
-    comando.toUpperCase();
-
-    // 1. Ignorar comentarios, líneas vacías y carácter %
-    if (comando.length() == 0 || comando.startsWith("(") || comando.startsWith(";") || comando.startsWith("%"))
-    {
-        return;
-    }
-
-    // 2. Comandos de control estándar
-    if (comando == "STOP") { detenerMotores(); Serial.println("OK: motores detenidos."); return; }
-    if (comando == "STATUS") { mostrarEstado(); return; }
-
-    // 3. Cambio de modo G90 / G91
-    if (comando.startsWith("G90"))
-    {
-        modoAbsoluto = true;
-        if (comando.indexOf('X') == -1 && comando.indexOf('Y') == -1 && comando.indexOf('Z') == -1)
+        if (caracter == '\n')
         {
-            Serial.println("OK: modo G90 (absoluto).");
-            return;
+            if (bufferSerial.length() > 0)
+            {
+                procesarGCode(bufferSerial);
+
+                bufferSerial = "";
+            }
         }
-    }
-    else if (comando.startsWith("G91"))
-    {
-        modoAbsoluto = false;
-        if (comando.indexOf('X') == -1 && comando.indexOf('Y') == -1 && comando.indexOf('Z') == -1)
+
+
+        // ignora el cr
+
+        else if (caracter == '\r')
         {
-            Serial.println("OK: modo G91 (relativo).");
-            return;
+            // No hacer nada
+        }
+
+
+       // acumular
+
+        else
+        {
+            bufferSerial += caracter;
+
+
+            // Protección contra líneas gigantes
+            if (bufferSerial.length() > 120)
+            {
+                bufferSerial = "";
+
+                Serial.println("error:LINE_TOO_LONG");
+            }
         }
     }
-
-    // 4. G92: fijar la posición actual como origen (o el valor indicado)
-    if (comando.startsWith("G92"))
-    {
-        bool tieneXg92, tieneYg92, tieneZg92;
-        float vx = extraerValorEje(comando, 'X', tieneXg92);
-        float vy = extraerValorEje(comando, 'Y', tieneYg92);
-        float vz = extraerValorEje(comando, 'Z', tieneZg92);
-
-        if (tieneXg92) posAbsX = vx;
-        if (tieneYg92) posAbsY = vy;
-        if (tieneZg92) posAbsZ = vz;
-
-        Serial.println("OK: origen fijado (G92).");
-        return;
-    }
-
-    // 5. Ignorar comandos M (Spindle / Fin de programa) enviando un "ok"
-    if (comando.startsWith("M"))
-    {
-        Serial.println("OK: comando M omitido.");
-        return;
-    }
-
-    if (!sistemaSeguro())
-    {
-        Serial.println("ERROR: sistema en estado de emergencia.");
-        return;
-    }
-
-    // 6. Limpiar prefijos de movimiento G
-    if (comando.startsWith("G0") || comando.startsWith("G1") ||
-        comando.startsWith("G2") || comando.startsWith("G3") ||
-        comando.startsWith("G90") || comando.startsWith("G91"))
-    {
-        int idxEspacio = comando.indexOf(' ');
-        if (idxEspacio != -1) {
-            comando = comando.substring(idxEspacio + 1);
-        }
-    }
-
-    // 7. Verificar presencia de ejes
-    bool tieneX, tieneY, tieneZ;
-    float valorX = extraerValorEje(comando, 'X', tieneX);
-    float valorY = extraerValorEje(comando, 'Y', tieneY);
-    float valorZ = extraerValorEje(comando, 'Z', tieneZ);
-
-    if (!tieneX && !tieneY && !tieneZ) {
-        Serial.println("ERROR: comando no valido.");
-        return;
-    }
-
-    // 8. Calcular el DELTA real de movimiento por eje
-    float deltaX = 0.0f, deltaY = 0.0f, deltaZ = 0.0f;
-
-    if (modoAbsoluto)
-    {
-        if (tieneX) deltaX = valorX - posAbsX;
-        if (tieneY) deltaY = valorY - posAbsY;
-        if (tieneZ) deltaZ = valorZ - posAbsZ;
-    }
-    else
-    {
-        if (tieneX) deltaX = valorX;
-        if (tieneY) deltaY = valorY;
-        if (tieneZ) deltaZ = valorZ;
-    }
-
-    long pasosX = lround(fabs(deltaX));
-    long pasosY = lround(fabs(deltaY));
-    long pasosZ = lround(fabs(deltaZ));
-
-    bool dirX = deltaX >= 0;
-    bool dirY = deltaY >= 0;
-    bool dirZ = deltaZ >= 0;
-
-    // 9. Validación de límites
-    if (tieneX && pasosX != 0 && dirX && limiteXActivo()) { Serial.println("ERROR: limite X activo."); return; }
-    if (tieneY && pasosY != 0 && dirY && limiteYActivo()) { Serial.println("ERROR: limite Y activo."); return; }
-    if (tieneZ && pasosZ != 0 && dirZ && limiteZActivo()) { Serial.println("ERROR: limite Z activo."); return; }
-
-    // 10. Ejecutar movimiento simultáneo de motores
-    moverSimultaneo(pasosX, dirX, pasosY, dirY, pasosZ, dirZ);
-
-    // 11. Actualizar la posición absoluta DESPUÉS de mover
-    if (modoAbsoluto)
-    {
-        if (tieneX) posAbsX = valorX;
-        if (tieneY) posAbsY = valorY;
-        if (tieneZ) posAbsZ = valorZ;
-    }
-    else
-    {
-        if (tieneX) posAbsX += valorX;
-        if (tieneY) posAbsY += valorY;
-        if (tieneZ) posAbsZ += valorZ;
-    }
-
-    Serial.println("OK: movimiento ejecutado.");
 }

@@ -4,6 +4,7 @@
 #include "Sensores.h"
 #include "Seg.h"
 #include "Comun.h"
+#include "Gcode.h"
 
 // SETUP
 
@@ -11,18 +12,15 @@
 //Hola
 void setup()
 {
-    // Inicializar motores
     motores_init();
 
-    // Inicializar sensores
     sensores_init();
 
-    // Inicializar seguridad
     seguridad_init();
 
-    // Inicializar comunicación USB/Serial
-    comunicacion_init();
+    gcode_init();
 
+    comunicacion_init();
 
     Serial.println("Inicializacion completa.");
     Serial.println("CNC lista.");
@@ -33,8 +31,15 @@ void setup()
 
 void loop()
 {
-    // Procesar comandos recibidos desde el PC
-    procesarComunicacion();
-}
+    comunicacion_update();
+
+    motores_update();
 
 //Prueba de conección con el PC
+// Seguridad
+
+    if (emergenciaActiva())
+    {
+        detenerMotores();
+    }
+}

@@ -5,9 +5,14 @@
 
 void sensores_init();
 
-bool limiteXActivo();
-bool limiteYActivo();
-bool limiteZActivo();
+bool xMinActivo();
+bool yMinActivo();
+bool zMinActivo();
+
+bool xMaxActivo();
+bool yMaxActivo();
+bool zMaxActivo();
+
 
 
 #endif

@@ -4,8 +4,9 @@
 #include <Arduino.h>
 
 void comunicacion_init();
-void procesarComunicacion();
+
+void comunicacion_update();
+
 void mostrarEstado();
-long extraerPasos(String texto, char eje);
 
 #endif

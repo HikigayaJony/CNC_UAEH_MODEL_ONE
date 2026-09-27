@@ -99,7 +99,7 @@ void comunicacion_init()
     bufferSerial = "";
 
     Serial.println("CNC UAEH READY");
-    Serial.println("Firmware: 1.0");
+    Serial.println("Firmware: 4.3");
 }
 
 
@@ -139,7 +139,7 @@ void mostrarEstado()
     else
     Serial.println("OK");
 
-    Serial.print("POSICION ACTUAL: X=");
+    Serial.print("Posicion Actual: X=");
     Serial.print(obtenerX(), 4);
 
     Serial.print(" Y=");
@@ -195,7 +195,7 @@ void comunicacion_update()
             {
                 bufferSerial = "";
 
-                Serial.println("error:LINE_TOO_LONG");
+                Serial.println("error:Linea demasiado larga");
             }
         }
     }

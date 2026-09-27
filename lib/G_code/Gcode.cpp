@@ -176,7 +176,7 @@ void procesarGCode(const String& entrada)
 
         //coordenadas
 
-        float parametro;
+        float parametro = 0;
 
 
         if (obtenerParametro(linea, 'X', parametro))

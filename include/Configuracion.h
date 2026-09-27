@@ -36,6 +36,12 @@
 
 #define MAX_FEEDRATE 1000.0
 
+// aceleracion
+
+
+#define MIN_FEEDRATE 30.0        // mm/min para el arranque
+#define ACCELERATION 50.0        // mm/s^2 en el eje
+
 // pantalla
 
 #define SERIAL_BAUDRATE 115200

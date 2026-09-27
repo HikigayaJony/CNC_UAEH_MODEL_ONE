@@ -210,7 +210,7 @@ void procesarGCode(const String& entrada)
 
         if (moverA(x, y, z, feedrateActual))
         {
-            Serial.println("ok");
+            
         }
         else
         {

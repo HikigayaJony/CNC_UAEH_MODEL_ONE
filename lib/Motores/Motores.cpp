@@ -6,6 +6,12 @@
 #include "Sensores.h"
 #include "Seg.h"
 
+//rampa de aceleracionv1 mm/min
+
+#define MIN_FEEDRATE 30.0        
+#define ACCELERATION 50.0
+
+
 
 // Posicion actual
 
@@ -29,31 +35,45 @@ long pasosX = 0;
 long pasosY = 0;
 long pasosZ = 0;
 
+
+// para el algoritmo bresenham
+
+long deltaX = 0, deltaY = 0, deltaZ = 0;
+int dirX = 1, dirY = 1, dirZ = 1;
+long maxPasos = 0;
+long pasoActual = 0;
+
+long errY = 0, errZ = 0;
+
+// rampa de aceleracion
+
+static unsigned long delayActualUS = 0;
+static unsigned long delayMinimoUS = 0;   // Retardo para la velocidad objetivo 
+static unsigned long delayStartUS = 0;    // Retardo inicial 
+
+float acelerapas =0.0; //pasos/s^2
+long pasosdeaceleracion = 0; //pasos para acelerar
+
+static unsigned long ultimoPasoMicros = 0;
+
+
+
 // Tiempo en microsegundos entre cada paso
 unsigned long pasoDelayUS = 1000;
-unsigned long ultimoPasoMicros = 0;
+unsigned long UltimoPasoMicros = 0;
 
 // Conversion de mm a pasos
 
-long mmAStepsX(float mm)
-{
-    return (long)(mm * X_STEPS_PER_MM);
-}
+long mmAStepsX(float mm){ return (long)(mm * X_STEPS_PER_MM);}
 
 
-long mmAStepsY(float mm)
-{
-    return (long)(mm * Y_STEPS_PER_MM);
-}
+long mmAStepsY(float mm){ return (long)(mm * Y_STEPS_PER_MM);}
 
 
-long mmAStepsZ(float mm)
-{
-    return (long)(mm * Z_STEPS_PER_MM);
-}
+long mmAStepsZ(float mm){return (long)(mm * Z_STEPS_PER_MM);}
 
 
-// Inicio
+// Inicio de control
 
 
 void motores_init()
@@ -102,6 +122,10 @@ bool moverA(float x, float y, float z, float feedrate)
     if (!sistemaSeguro() ||  movimientoActivo){
         return false;
     }
+
+    destinoX = mmAStepsX(x);
+    destinoY = mmAStepsY(y);
+    destinoZ = mmAStepsZ(z);
     
 
     if (feedrate <= 0){
@@ -114,39 +138,62 @@ bool moverA(float x, float y, float z, float feedrate)
     }
 
 
-    destinoX = mmAStepsX(x);
-    destinoY = mmAStepsY(y);
-    destinoZ = mmAStepsZ(z);
+    
 
 
-    pasosX = mmAStepsX(posicionX);
-    pasosY = mmAStepsY(posicionY);
-    pasosZ = mmAStepsZ(posicionZ);
+    // calculo de diferencias por bresenham
+    deltaX = abs(destinoX - pasosX);
+    deltaY = abs(destinoY - pasosY);
+    deltaZ = abs(destinoZ - pasosZ);
 
-    // Esto da la direccion
+    dirX = (destinoX >= pasosX) ? 1 : -1;
+    dirY = (destinoY >= pasosY) ? 1 : -1;
+    dirZ = (destinoZ >= pasosZ) ? 1 : -1;
 
-    digitalWrite(X_DIR_PIN,destinoX >= pasosX ? HIGH : LOW);
+    digitalWrite(X_DIR_PIN, dirX > 0 ? HIGH : LOW);
+    digitalWrite(Y_DIR_PIN, dirY > 0 ? HIGH : LOW);
+    digitalWrite(Z_DIR_PIN, dirZ > 0 ? HIGH : LOW);
 
-    digitalWrite(Y_DIR_PIN,destinoY >= pasosY ? HIGH : LOW);
+    //eje dominante (el que dará más pasos)
+    maxPasos = max(deltaX, max(deltaY, deltaZ));
 
-    digitalWrite(Z_DIR_PIN, destinoZ >= pasosZ ? HIGH : LOW);
+    // se detiene cuando estemos en el lugar de destino
 
-    // Nueva seccion, calcular el tiempo entre pasos
+    if (maxPasos == 0) {
+        return true; 
+    }
 
-    float pasosPorSegundo = (feedrate / 60.0) * X_STEPS_PER_MM; //Para no saturar el motor en base al cpu
+    // Inicializar errores de interpolación respecto al eje principal (Asumiendo X como base)
+    errY = 2 * deltaY - maxPasos;
+    errZ = 2 * deltaZ - maxPasos;
 
-    if (pasosPorSegundo > 0) {
-        // Tiempo por paso en microsegundos (1,000,000 us / pasos_por_segundo)
-        pasoDelayUS = (unsigned long)(1000000.0 / pasosPorSegundo);
-    } else {
-        pasoDelayUS = 10000; // Valor seguro por defecto (10ms)
+    pasoActual = 0;
+
+    // calculo para las aceleraciones que deben tomar los ejes
+    float pasosPorSegTarget = (feedrate / 60.0) * X_STEPS_PER_MM;
+    float pasosPorSegStart = (MIN_FEEDRATE / 60.0) * X_STEPS_PER_MM;
+
+    delayMinimoUS = (unsigned long)(1000000.0 / pasosPorSegTarget);
+    delayStartUS = (unsigned long)(1000000.0 / pasosPorSegStart);
+    delayActualUS = delayStartUS;
+
+    //convertimos aceleracion apasos
+    acelerapas= ACCELERATION * X_STEPS_PER_MM;
+
+    // definimos cuantos pasos necesitamos para acelerar hasta la velocidad objetivo
+    acelerapas = (long)((pow(pasosPorSegTarget, 2) - pow(pasosPorSegStart, 2)) / (2.0 * acelerapas));
+
+    // en trayectos cortos, usamos
+    if (acelerapas > maxPasos / 2) {
+        acelerapas = maxPasos / 2;
     }
 
     habilitarDrivers();
-
     movimientoActivo = true;
-
+    ultimoPasoMicros = micros();
     return true;
+
+
 }
 
 
@@ -167,6 +214,24 @@ bool moverRelativo(float dx, float dy, float dz, float feedrate)
 
 void motores_update()
 {
+
+    // En motores_update() dentro de Motores.cpp:
+if (pasoActual >= maxPasos) {
+    movimientoActivo = false;
+
+    pasosX = destinoX;
+    pasosY = destinoY;
+    pasosZ = destinoZ;
+
+    posicionX = (float)pasosX / X_STEPS_PER_MM;
+    posicionY = (float)pasosY / Y_STEPS_PER_MM;
+    posicionZ = (float)pasosZ / Z_STEPS_PER_MM;
+
+    // Opcional: apagar pulsos por seguridad
+    digitalWrite(X_STEP_PIN, LOW);
+    digitalWrite(Y_STEP_PIN, LOW);
+    digitalWrite(Z_STEP_PIN, LOW);
+}
     if (!movimientoActivo)
     {
         return;
@@ -188,62 +253,72 @@ void motores_update()
     ultimoPasoMicros = micros();
 
     // pasos para X
-    
-    if (pasosX != destinoX)
-    {
+    if (deltaX == maxPasos || (2 * errY >= 0)) {
         digitalWrite(X_STEP_PIN, HIGH);
-
-        delayMicroseconds(STEP_PULSE_US);
-
-        digitalWrite(X_STEP_PIN, LOW);
-
-        pasosX += destinoX > pasosX ? 1 : -1;
-
-        posicionX = pasosX / X_STEPS_PER_MM;
     }
+    
 
 
     // eje Y
-
-    if (pasosY != destinoY)
-    {
+    if (deltaY == maxPasos || (2 * errY >= 0 && deltaX == maxPasos)) {
         digitalWrite(Y_STEP_PIN, HIGH);
-
-        delayMicroseconds(STEP_PULSE_US);
-
-        digitalWrite(Y_STEP_PIN, LOW);
-
-        pasosY += destinoY > pasosY ? 1 : -1;
-
-        posicionY = pasosY / Y_STEPS_PER_MM;
     }
-
 
     // Z
 
-    if (pasosZ != destinoZ)
-    {
+    if (deltaZ == maxPasos || (2 * errZ >= 0 && deltaX == maxPasos)) {
         digitalWrite(Z_STEP_PIN, HIGH);
-
-        delayMicroseconds(STEP_PULSE_US);
-
-        digitalWrite(Z_STEP_PIN, LOW);
-
-        pasosZ += destinoZ > pasosZ ? 1 : -1;
-
-        posicionZ = pasosZ / Z_STEPS_PER_MM;
     }
 
+    delayMicroseconds(STEP_PULSE_US);
+
+    // Bajar los impulsos
+    digitalWrite(X_STEP_PIN, LOW);
+    digitalWrite(Y_STEP_PIN, LOW);
+    digitalWrite(Z_STEP_PIN, LOW);
+
+
+    //contadores de posicion
+    
+    if (deltaX == maxPasos || (2 * errY >= 0)) {
+        pasosX += dirX;
+        if (deltaX != maxPasos) errY -= 2 * maxPasos;
+    }
+    if (deltaY == maxPasos || (2 * errY >= 0)) {
+        pasosY += dirY;
+        errY += 2 * deltaY;
+    }
+    if (deltaZ == maxPasos || (2 * errZ >= 0)) {
+        pasosZ += dirZ;
+        errZ += 2 * deltaZ;
+    }
+
+    pasoActual++;
+
+    //actualizar coordenadas
+
+    posicionX = (float)pasosX / X_STEPS_PER_MM;
+    posicionY = (float)pasosY / Y_STEPS_PER_MM;
+    posicionZ = (float)pasosZ / Z_STEPS_PER_MM;
+
+    // calculo de rampa de velocidad
+
+    if (pasoActual < acelerapas) {
+        // Fase 1: Aceleración (Disminuir delayActualUS)
+        float progreso = (float)pasoActual / acelerapas;
+        delayActualUS = delayStartUS - (progreso * (delayStartUS - delayMinimoUS));
+    }
+    else if (pasoActual > (maxPasos - acelerapas)) {
+        // Fase 3: Desaceleración (Aumentar delayActualUS)
+        float progreso = (float)(maxPasos - pasoActual) / acelerapas;
+        delayActualUS = delayStartUS - (progreso * (delayStartUS - delayMinimoUS));
+    }
+    else {
+        // Fase 2: Velocidad Crucero
+        delayActualUS = delayMinimoUS;
+    }
 
     
-    // Fin del movimiento
-    
-    if (pasosX == destinoX &&
-        pasosY == destinoY &&
-        pasosZ == destinoZ)
-    {
-        movimientoActivo = false;
-    }
 }
 
 
@@ -287,6 +362,10 @@ void establecerPosicion(float x, float y, float z)
     posicionX = x;
     posicionY = y;
     posicionZ = z;
+
+    pasosX = mmAStepsX(x);
+    pasosY = mmAStepsY(y);
+    pasosZ = mmAStepsZ(z);
 }
 
 

@@ -7,9 +7,9 @@
 #include "Gcode.h"
 
 // SETUP
+// Variable para rastrear el estado anterior del movimiento
+bool estabaMoviendose = false;
 
-
-//Hola
 void setup()
 {
     motores_init();
@@ -31,15 +31,23 @@ void setup()
 
 void loop()
 {
-    comunicacion_update();
-
-    motores_update();
-
-//Prueba de conección con el PC
-// Seguridad
-
-    if (emergenciaActiva())
-    {
+    if (emergenciaActiva()) {
         detenerMotores();
     }
+
+    //Procesar cualquier comando G-code entrante
+    if (!motoresOcupados()) {
+        comunicacion_update();
+    }
+
+    
+    motores_update();
+
+    //Detectar el momento exacto en que finaliza el movimiento para notificar al PC
+    if (estabaMoviendose && !motoresOcupados()) {
+        Serial.println("ok"); 
+    }
+
+    estabaMoviendose = motoresOcupados();
 }
+

@@ -342,17 +342,17 @@ if (pasoActual >= maxPasos) {
     // calculo de rampa de aceleracion
 
     if (pasoActual < acelerapas) {
-        // Fase 1: Aceleración (Disminuir delayActualUS)
+        
         float progreso = (float)pasoActual / acelerapas;
         delayActualUS = delayStartUS - (progreso * (delayStartUS - delayMinimoUS));
     }
     else if (pasoActual > (maxPasos - acelerapas)) {
-        // Fase 3: Desaceleración (Aumentar delayActualUS)
+        
         float progreso = (float)(maxPasos - pasoActual) / acelerapas;
         delayActualUS = delayStartUS - (progreso * (delayStartUS - delayMinimoUS));
     }
     else {
-        // Fase 2: Velocidad Crucero
+        
         delayActualUS = delayMinimoUS;
     }
 

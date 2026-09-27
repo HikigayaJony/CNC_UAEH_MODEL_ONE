@@ -92,7 +92,7 @@ void procesarGCode(const String& entrada)
 
     // Estado
 
-    if (linea == "STATUS")
+    if (linea == "ESTADO")
 {
     mostrarEstado();
     return;
@@ -101,7 +101,7 @@ void procesarGCode(const String& entrada)
 
     if (emergenciaActiva())
     {
-        Serial.println("error:EMERGENCY");
+        Serial.println("error:Emergencia activa");
 
         return;
     }
@@ -221,7 +221,7 @@ void procesarGCode(const String& entrada)
     }
 
 
-    // Comando M0
+    // Comando M0 de pausa condicional
 
     if (linea.startsWith("M0"))
     {
@@ -233,7 +233,7 @@ void procesarGCode(const String& entrada)
     }
 
 
-    // Comandos M2 / M30
+    // Comandos M2 / M30 fin de programa
 
     if (linea.startsWith("M2") ||
         linea.startsWith("M30"))
@@ -249,13 +249,13 @@ void procesarGCode(const String& entrada)
     if (linea == "HELP")
 {
     Serial.println("=== COMANDOS CNC UAEH ===");
-    Serial.println("STATUS");
-    Serial.println("HELP");
-    Serial.println("G0 X.. Y.. Z..");
-    Serial.println("G1 X.. Y.. Z.. F..");
-    Serial.println("G90");
-    Serial.println("G91");
-    Serial.println("G92 X.. Y.. Z..");
+    Serial.println("ESTADO: brinda información sobre el estado actual de la máquina");
+    Serial.println("HELP: muestra esta lista de comandos");
+    Serial.println("G0 X- Y- Z-  -> genera un movimiento rapido");
+    Serial.println("G1 X- Y- Z- F- -> utiliza interpolacion lineal");
+    Serial.println("G90 - modo absoluto ");
+    Serial.println("G91 - modo relativo");
+    Serial.println("G92 X- Y- Z- -> establece la posición actual");
     Serial.println("=========================");
     return;
 }

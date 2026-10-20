@@ -6,261 +6,207 @@
 #include "Configuracion.h"
 #include "Comun.h"
 
-
 // Estado de g-code
-
 bool modoAbsoluto = true;
-
 float feedrateActual = DEFAULT_FEEDRATE;
 
 
-
-// Extraer parametro
-
-
-bool obtenerParametro(const String& linea,char letra,float& valor)
+bool obtenerParametro(const String& linea, char letra, float& valor)
 {
     int posicion = linea.indexOf(letra);
-
     if (posicion == -1)
     {
         return false;
     }
 
-
     int inicio = posicion + 1;
+    int fin = inicio;
 
-    int fin = linea.indexOf(' ', inicio);
-
-    if (fin == -1)
+    
+    while (fin < (int)linea.length())
     {
-        fin = linea.length();
+        char c = linea.charAt(fin);
+        if (isDigit(c) || c == '.' || c == '-' || c == '+')
+        {
+            fin++;
+        }
+        else
+        {
+            break; 
+        }
     }
 
+    if (inicio == fin)
+    {
+        return false;
+    }
 
     String numero = linea.substring(inicio, fin);
-
     valor = numero.toFloat();
-
     return true;
 }
 
-//Inicio
-
+// Inicio
 void gcode_init()
 {
     modoAbsoluto = true;
-
     feedrateActual = DEFAULT_FEEDRATE;
 }
 
 
-// PROCESAMIENTO
-
 void procesarGCode(const String& entrada)
 {
     String linea = entrada;
-
     linea.trim();
-
     linea.toUpperCase();
-
 
     if (linea.length() == 0)
     {
         return;
     }
 
-
-    // comentarios
-
+    // Filtrar comentarios
     int comentario = linea.indexOf(';');
-
     if (comentario != -1)
     {
         linea = linea.substring(0, comentario);
-
         linea.trim();
     }
-
 
     if (linea.length() == 0)
     {
         return;
     }
 
-
-    // Estado
-
+    // Consulta de estado interno
     if (linea == "ESTADO")
-{
-    mostrarEstado();
-    return;
-}
-    // Emergencia
+    {
+        mostrarEstado();
+        return;
+    }
 
+    // Verificar interruptor de emergencia
     if (emergenciaActiva())
     {
         Serial.println("error:Emergencia activa");
-
         return;
     }
 
-
-    // comando G90
-
+    // Comando G90 (Modo Absoluto)
     if (linea.startsWith("G90"))
     {
         modoAbsoluto = true;
-
         Serial.println("ok");
-
         return;
     }
 
-
-    // comando G91
-
+    // Comando G91 (Modo Relativo)
     if (linea.startsWith("G91"))
     {
         modoAbsoluto = false;
-
         Serial.println("ok");
-
         return;
     }
 
-
-    //comando G92
-
+    // Comando G92 (Fijar Posición)
     if (linea.startsWith("G92"))
     {
         float x = obtenerX();
         float y = obtenerY();
         float z = obtenerZ();
+        float val = 0;
 
-        obtenerParametro(linea, 'X', x);
-        obtenerParametro(linea, 'Y', y);
-        obtenerParametro(linea, 'Z', z);
+        if (obtenerParametro(linea, 'X', val)) x = val;
+        if (obtenerParametro(linea, 'Y', val)) y = val;
+        if (obtenerParametro(linea, 'Z', val)) z = val;
 
         establecerPosicion(x, y, z);
-
         Serial.println("ok");
-
         return;
     }
 
-
-    // comando G0 / G1
-
-    if (linea.startsWith("G0") ||
-        linea.startsWith("G1"))
+    // Comandos G0 / G1 (Movimiento)
+    if (linea.startsWith("G0") || linea.startsWith("G1"))
     {
+        
         float x = obtenerX();
         float y = obtenerY();
         float z = obtenerZ();
 
+        bool esG0 = linea.startsWith("G0");
+        float feedrateComando = esG0 ? MAX_FEEDRATE : feedrateActual;
 
-        //feedrate
-
+        
         float f;
-
         if (obtenerParametro(linea, 'F', f))
         {
             if (f > 0)
             {
                 feedrateActual = f;
+                if (!esG0) feedrateComando = f;
             }
         }
 
-
-        //coordenadas
-
+        
         float parametro = 0;
-
 
         if (obtenerParametro(linea, 'X', parametro))
         {
-            if (modoAbsoluto)
-                x = parametro;
-            else
-                x += parametro;
+            x = modoAbsoluto ? parametro : (obtenerX() + parametro);
         }
-
 
         if (obtenerParametro(linea, 'Y', parametro))
         {
-            if (modoAbsoluto)
-                y = parametro;
-            else
-                y += parametro;
+            y = modoAbsoluto ? parametro : (obtenerY() + parametro);
         }
-
 
         if (obtenerParametro(linea, 'Z', parametro))
         {
-            if (modoAbsoluto)
-                z = parametro;
-            else
-                z += parametro;
+            z = modoAbsoluto ? parametro : (obtenerZ() + parametro);
         }
 
-
-        // Ejecutar
-
-        if (moverA(x, y, z, feedrateActual))
+        
+        if (!moverA(x, y, z, feedrateComando))
         {
-            
-        }
-        else
-        {
-            Serial.println("error:MOVE");
+            Serial.println("error:MOVE_FAILED");
         }
 
         return;
     }
 
-
-    // Comando M0 de pausa condicional
-
+    // Comando M0 (Pausa)
     if (linea.startsWith("M0"))
     {
         detenerMotores();
-
         Serial.println("ok");
-
         return;
     }
 
-
-    // Comandos M2 / M30 fin de programa
-
-    if (linea.startsWith("M2") ||
-        linea.startsWith("M30"))
+    // Comandos M2 / M30 (Fin de Programa)
+    if (linea.startsWith("M2") || linea.startsWith("M30"))
     {
         detenerMotores();
-
+        deshabilitarDrivers();
+        modoAbsoluto = true;
         Serial.println("ok");
-
         return;
     }
 
-    // comando de comandos(?)
-    if (linea == "HELP")
-{
-    Serial.println("=== COMANDOS CNC UAEH ===");
-    Serial.println("ESTADO: brinda información sobre el estado actual de la máquina");
-    Serial.println("HELP: muestra esta lista de comandos");
-    Serial.println("G0 X- Y- Z-  -> genera un movimiento rapido");
-    Serial.println("G1 X- Y- Z- F- -> utiliza interpolacion lineal");
-    Serial.println("G90 - modo absoluto ");
-    Serial.println("G91 - modo relativo");
-    Serial.println("G92 X- Y- Z- -> establece la posición actual");
-    Serial.println("=========================");
-    return;
-}
+    // Comando HELP
+    if (linea == "AYUDA" || linea == "HELP")
+    {
+        Serial.println("=== COMANDOS CNC UAEH ===");
+        Serial.println("ESTADO: brinda información sobre el estado actual de la máquina");
+        Serial.println("HELP/AYUDA: muestra esta lista de comandos");
+        Serial.println("G0 X- Y- Z-   -> genera un movimiento rapido");
+        Serial.println("G1 X- Y- Z- F- -> utiliza interpolacion lineal");
+        Serial.println("G90 - modo absoluto");
+        Serial.println("G91 - modo relativo");
+        Serial.println("G92 X- Y- Z- -> establece la posición actual");
+        Serial.println("=========================");
+        return;
+    }
 
-    // Desconocido
-
-    Serial.println("error:UNKNOWN_COMMAND");
+    // Comando no reconocido
+    Serial.println("error:COMANDO NO RECONOCIDO");
 }

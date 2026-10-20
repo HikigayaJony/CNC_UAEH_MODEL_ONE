@@ -32,6 +32,7 @@ bool motoresOcupados();
 // Actualización
 void motores_update();
 
-
+void habilitarDrivers();
+void deshabilitarDrivers();
 
 #endif
